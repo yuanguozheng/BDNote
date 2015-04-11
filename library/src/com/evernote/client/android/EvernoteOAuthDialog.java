@@ -31,7 +31,6 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -44,7 +43,7 @@ import android.widget.Toast;
 import cn.adbshell.common.util.UIUtil;
 
 import com.evernote.androidsdk.R;
-import com.evernote.client.android.EvernoteSession.EvernoteService;
+import com.evernote.client.android.EvernoteSession.AuthCallback;
 import com.evernote.client.oauth.EvernoteAuthToken;
 import com.evernote.client.oauth.YinxiangApi;
 import com.evernote.edam.userstore.BootstrapInfo;
@@ -62,8 +61,8 @@ import java.util.ArrayList;
 /**
  * An Android Activity for authenticating to Evernote using OAuth. Third parties should not need to use this class
  * directly.
- *
- *
+ * 
+ * 
  * class created by @tylersmithnet
  */
 public class EvernoteOAuthDialog extends Dialog {
@@ -80,7 +79,7 @@ public class EvernoteOAuthDialog extends Dialog {
     static final String EXTRA_BOOTSTRAP_SELECTED_PROFILE = "BOOTSTRAP_SELECTED_PROFILE";
     static final String EXTRA_BOOTSTRAP_SELECTED_PROFILES = "BOOTSTRAP_SELECTED_PROFILES";
 
-    private EvernoteSession.EvernoteService mEvernoteService = null;
+    private int mEvernoteService = -1;
 
     private BootstrapProfile mSelectedBootstrapProfile;
     private int mSelectedBootstrapProfilePos = 0;
@@ -97,43 +96,19 @@ public class EvernoteOAuthDialog extends Dialog {
     private AsyncTask mBeginAuthSyncTask = null;
     private AsyncTask mCompleteAuthSyncTask = null;
 
-    private ProgressDialog mDialog;
+    private ProgressDialog mProgressDialog;
 
-    /**
-     * Overrides the callback URL and authenticate
-     */
-    private WebViewClient mWebViewClient = new WebViewClient() {
+    private AuthCallback mCallback;
 
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            Uri uri = Uri.parse(url);
-            if (uri.getScheme().equals(getCallbackScheme())) {
-                if (mCompleteAuthSyncTask == null) {
-                    mCompleteAuthSyncTask = new CompleteAuthAsyncTask().execute(uri);
-                }
-                return true;
-            }
-            return super.shouldOverrideUrlLoading(view, url);
-        }
-    };
-
-    /**
-     * Allows for showing progress
-     */
-    private WebChromeClient mWebChromeClient = new WebChromeClient() {
-        @Override
-        public void onProgressChanged(WebView view, int newProgress) {
-            super.onProgressChanged(view, newProgress);
-            // TODO by mchen EvernoteOAuthActivity.this.setProgress(newProgress * 1000);
-        }
-    };
-
-    public EvernoteOAuthDialog(Context context, EvernoteService service, String key, String secret, boolean support) {
+    public EvernoteOAuthDialog(Context context, int service, String key, String secret, boolean support,
+            AuthCallback callback) {
         super(context, android.R.style.Theme_Black_NoTitleBar);
+        setCanceledOnTouchOutside(false);
         mEvernoteService = service;
         mConsumerKey = key;
         mConsumerSecret = secret;
         mSupportAppLinkedNotebooks = support;
+        mCallback = callback;
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -155,12 +130,10 @@ public class EvernoteOAuthDialog extends Dialog {
         }
     }
 
-    private ProgressDialog createProgressDialog() {
-        ProgressDialog progressDialog = new ProgressDialog(getContext());
-        progressDialog.setIndeterminate(true);
-        progressDialog.setCancelable(false);
-        progressDialog.setMessage(getContext().getString(R.string.esdk__loading));
-        return progressDialog;
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        exit(false);
     }
 
     /**
@@ -192,26 +165,6 @@ public class EvernoteOAuthDialog extends Dialog {
         }
         return new ServiceBuilder().provider(apiClass).apiKey(mConsumerKey).apiSecret(mConsumerSecret)
                 .callback(getCallbackScheme() + "://callback").build();
-    }
-
-    /**
-     * Exit the activity and display a toast message.
-     * 
-     * @param success Whether the OAuth process completed successfully.
-     */
-    private void exit(final boolean success) {
-        UIUtil.runOnUIThread(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(getContext(),
-                        success ? R.string.esdk__evernote_login_successful : R.string.esdk__evernote_login_failed,
-                        Toast.LENGTH_LONG).show();
-                dismiss();
-                // setResult(success ? RESULT_OK : RESULT_CANCELED);
-                // finish();
-                // TODO by mchen callback
-            }
-        });
     }
 
     /**
@@ -278,22 +231,12 @@ public class EvernoteOAuthDialog extends Dialog {
          */
         @Override
         protected void onPostExecute(String url) {
-            mDialog.dismiss();
+            UIUtil.dismissDialogSafe(mProgressDialog);
             if (!TextUtils.isEmpty(url)) {
                 mWebView.loadUrl(url);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                    invalidateOptionsMenu();
-                }
             } else {
                 exit(false);
             }
-        }
-    }
-
-    private void showProgressDialog() {
-        if (mDialog == null) {
-            mDialog = createProgressDialog();
-            mDialog.show();
         }
     }
 
@@ -320,7 +263,6 @@ public class EvernoteOAuthDialog extends Dialog {
                 String verifierString = uri.getQueryParameter("oauth_verifier");
                 String appLnbString = uri.getQueryParameter("sandbox_lnb");
                 boolean isAppLinkedNotebook = "true".equalsIgnoreCase(appLnbString);
-
                 if (TextUtils.isEmpty(verifierString)) {
                     Log.i(LOGTAG, "User did not authorize access");
                 } else {
@@ -330,7 +272,6 @@ public class EvernoteOAuthDialog extends Dialog {
                         Token reqToken = new Token(mRequestToken, mRequestTokenSecret);
                         authToken =
                                 new EvernoteAuthToken(service.getAccessToken(reqToken, verifier), isAppLinkedNotebook);
-
                     } catch (Exception ex) {
                         Log.e(LOGTAG, "Failed to obtain OAuth access token", ex);
                     }
@@ -348,7 +289,7 @@ public class EvernoteOAuthDialog extends Dialog {
 
         @Override
         protected void onPostExecute(EvernoteAuthToken authToken) {
-            mDialog.dismiss();
+            UIUtil.dismissDialogSafe(mProgressDialog);
             if (EvernoteSession.getOpenSession() == null) {
                 exit(false);
                 return;
@@ -358,4 +299,62 @@ public class EvernoteOAuthDialog extends Dialog {
         }
     }
 
+    /**
+     * Exit the activity and display a toast message.
+     * 
+     * @param success Whether the OAuth process completed successfully.
+     */
+    private void exit(final boolean success) {
+        UIUtil.runOnUIThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(getContext(),
+                        success ? R.string.esdk__evernote_login_successful : R.string.esdk__evernote_login_failed,
+                        Toast.LENGTH_LONG).show();
+                dismiss();
+                if (mCallback != null) {
+                    mCallback.callback(success);
+                }
+            }
+        });
+    }
+
+    private void showProgressDialog() {
+        if (mProgressDialog == null) {
+            mProgressDialog = new ProgressDialog(getContext());
+            mProgressDialog.setIndeterminate(true);
+            mProgressDialog.setCancelable(false);
+            mProgressDialog.setMessage(getContext().getString(R.string.esdk__loading));
+            mProgressDialog.show();
+        }
+    }
+
+    /**
+     * Overrides the callback URL and authenticate
+     */
+    private WebViewClient mWebViewClient = new WebViewClient() {
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            Uri uri = Uri.parse(url);
+            if (uri.getScheme().equals(getCallbackScheme())) {
+                if (mCompleteAuthSyncTask == null) {
+                    mCompleteAuthSyncTask = new CompleteAuthAsyncTask().execute(uri);
+                }
+                return true;
+            }
+            return super.shouldOverrideUrlLoading(view, url);
+        }
+    };
+
+    /**
+     * Allows for showing progress
+     */
+    private WebChromeClient mWebChromeClient = new WebChromeClient() {
+        @Override
+        public void onProgressChanged(WebView view, int newProgress) {
+            super.onProgressChanged(view, newProgress);
+            // TODO by mchen EvernoteOAuthActivity.this.setProgress(newProgress * 1000);
+        }
+    };
 }

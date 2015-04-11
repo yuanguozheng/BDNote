@@ -21,7 +21,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import com.baidu.clipboardlistener.evernote.EvernoteApi;
-import com.evernote.client.android.EvernoteSession;
+import com.evernote.client.android.EvernoteSession.AuthCallback;
 import com.evernote.client.android.OnClientCallback;
 import com.evernote.edam.type.Note;
 
@@ -75,7 +75,7 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
 
         @Override
         boolean login() {
-            EvernoteApi.getInstance().login(CreateNoteActivity.this);
+            EvernoteApi.getInstance().login(CreateNoteActivity.this, mAuthCallback);
             return true;
         }
 
@@ -102,6 +102,17 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
         }
 
     }
+
+    private AuthCallback mAuthCallback = new AuthCallback() {
+
+        @Override
+        public void callback(boolean success) {
+            if (!success) {
+                Toast.makeText(CreateNoteActivity.this, "登陆失败!", Toast.LENGTH_LONG).show();
+                finish();
+            }
+        }
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -135,27 +146,6 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
         switch (v.getId()) {
             case R.id.create_btn_create:
                 saveNote();
-                break;
-            default:
-                break;
-        }
-    }
-
-    /**
-     * Called when the control returns from an activity that we launched.
-     */
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        switch (requestCode) {
-        // Update UI when oauth activity returns result
-            case EvernoteSession.REQUEST_CODE_OAUTH:
-                if (resultCode == Activity.RESULT_OK) {
-
-                } else {
-                    Toast.makeText(this, "登陆失败!", Toast.LENGTH_LONG).show();
-                    finish();
-                }
                 break;
             default:
                 break;

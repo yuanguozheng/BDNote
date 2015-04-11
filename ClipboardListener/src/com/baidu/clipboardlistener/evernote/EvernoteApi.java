@@ -12,6 +12,7 @@ import android.util.Pair;
 
 import com.evernote.client.android.AsyncLinkedNoteStoreClient;
 import com.evernote.client.android.EvernoteSession;
+import com.evernote.client.android.EvernoteSession.AuthCallback;
 import com.evernote.client.android.EvernoteUtil;
 import com.evernote.client.android.InvalidAuthenticationException;
 import com.evernote.client.android.OnClientCallback;
@@ -40,7 +41,7 @@ public class EvernoteApi {
     // Change to HOST_PRODUCTION to use the Evernote production service
     // once your code is complete, or HOST_CHINA to use the Yinxiang Biji
     // (Evernote China) production service.
-    private static final EvernoteSession.EvernoteService EVERNOTE_SERVICE = EvernoteSession.EvernoteService.SANDBOX;
+    private static final int EVERNOTE_SERVICE = EvernoteSession.SANDBOX;
 
     // Set this to true if you want to allow linked notebooks for accounts that can only access a single
     // notebook.
@@ -59,15 +60,15 @@ public class EvernoteApi {
         }
     }
 
+    public static EvernoteApi getInstance() {
+        return sInstance;
+    }
+
     private EvernoteApi(Context context) {
         // Set up the Evernote Singleton Session
         mEvernoteSession =
                 EvernoteSession.getInstance(context, CONSUMER_KEY, CONSUMER_SECRET, EVERNOTE_SERVICE,
                         SUPPORT_APP_LINKED_NOTEBOOKS);
-    }
-
-    public static EvernoteApi getInstance() {
-        return sInstance;
     }
 
     public void createNote(String title, String content, OnClientCallback<Note> createNoteCallback) {
@@ -168,8 +169,8 @@ public class EvernoteApi {
     /**
      * Called when the user taps the "Log in to Evernote" button. Initiates the Evernote OAuth process
      */
-    public void login(Context context) {
-        mEvernoteSession.authenticate(context);
+    public void login(Context context, AuthCallback callback) {
+        mEvernoteSession.authenticate(context, callback);
     }
 
     /**

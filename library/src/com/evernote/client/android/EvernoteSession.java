@@ -25,18 +25,17 @@
  */
 package com.evernote.client.android;
 
-import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
-import android.os.Parcel;
-import android.os.Parcelable;
 import android.text.TextUtils;
 import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
+
+import cn.adbshell.common.util.UIUtil;
+
 import com.evernote.client.oauth.EvernoteAuthToken;
 
 import java.util.Locale;
@@ -44,7 +43,7 @@ import java.util.Locale;
 /**
  * Represents a session with the Evernote web service API. Used to authenticate to the service via OAuth and obtain
  * NoteStore.Client objects, which are used to make authenticated API calls.
- *
+ * 
  * To use EvernoteSession, first initialize the EvernoteSession singleton and initiate authentication at an appropriate
  * time:
  * 
@@ -54,7 +53,7 @@ import java.util.Locale;
  *     session.authenticate(...);
  *   }
  * </pre>
- *
+ * 
  * When authentication completes, you will want to trap the result in onActivityResult to see if it was successful:
  * 
  * <pre>
@@ -69,7 +68,7 @@ import java.util.Locale;
  *     }
  * }
  * </pre>
- *
+ * 
  * Later, you can make any Evernote API calls that you need by obtaining a NoteStore.Client from the session and using
  * the session's auth token:
  * 
@@ -77,7 +76,7 @@ import java.util.Locale;
  * NoteStore.client noteStore = session.createNoteStoreClient();
  * Notebook notebook = noteStore.getDefaultNotebook(session.getAuthToken());
  * </pre>
- *
+ * 
  * class created by @tylersmithnet
  */
 public class EvernoteSession {
@@ -93,31 +92,8 @@ public class EvernoteSession {
      * Evernote Service to use with the bootstrap profile detection. Sandbox will return profiles referencing
      * sandbox.evernote.com Production will return evernote.com and app.yinxiang.com
      */
-    public enum EvernoteService implements Parcelable {
-        SANDBOX, PRODUCTION;
-
-        @Override
-        public int describeContents() {
-            return 0;
-        }
-
-        @Override
-        public void writeToParcel(final Parcel dest, final int flags) {
-            dest.writeInt(ordinal());
-        }
-
-        public static final Creator<EvernoteService> CREATOR = new Creator<EvernoteService>() {
-            @Override
-            public EvernoteService createFromParcel(final Parcel source) {
-                return EvernoteService.values()[source.readInt()];
-            }
-
-            @Override
-            public EvernoteService[] newArray(final int size) {
-                return new EvernoteService[size];
-            }
-        };
-    }
+    public static final int SANDBOX = 0;
+    public static final int PRODUCTION = 1;
 
     public static final int REQUEST_CODE_OAUTH = 14390;
 
@@ -125,7 +101,7 @@ public class EvernoteSession {
 
     private String mConsumerKey;
     private String mConsumerSecret;
-    private EvernoteService mEvernoteService;
+    private int mEvernoteService;
     private BootstrapManager mBootstrapManager;
     private ClientFactory mClientFactory;
     private AuthenticationResult mAuthenticationResult;
@@ -134,7 +110,7 @@ public class EvernoteSession {
     /**
      * Use to acquire a singleton instance of the EvernoteSession for authentication. If the singleton has already been
      * initialized, the existing instance will be returned (and the parameters passed to this method will be ignored).
-     *
+     * 
      * @param ctx
      * @param consumerKey The consumer key portion of your application's API key.
      * @param consumerSecret The consumer secret portion of your application's API key.
@@ -143,12 +119,12 @@ public class EvernoteSession {
      *            {@link EvernoteService#HOST_PRODUCTION}.
      * @param supportAppLinkedNotebooks true if you want to allow linked notebooks for applications which can only
      *            access a single notebook.
-     *
+     * 
      * @return The EvernoteSession singleton instance.
      * @throws IllegalArgumentException
      */
     public static EvernoteSession getInstance(Context ctx, String consumerKey, String consumerSecret,
-            EvernoteService evernoteService, boolean supportAppLinkedNotebooks) throws IllegalArgumentException {
+            int evernoteService, boolean supportAppLinkedNotebooks) throws IllegalArgumentException {
         if (sInstance == null) {
             sInstance =
                     new EvernoteSession(ctx, consumerKey, consumerSecret, evernoteService, supportAppLinkedNotebooks);
@@ -158,7 +134,7 @@ public class EvernoteSession {
 
     /**
      * Used to access the initialized EvernoteSession singleton instance.
-     *
+     * 
      * @return The previously initialized EvernoteSession instance, or null if
      *         {@link #getInstance(android.content.Context, String, String, com.evernote.client.android.EvernoteSession.EvernoteService, boolean)}
      *         has not been called yet.
@@ -170,14 +146,11 @@ public class EvernoteSession {
     /**
      * Private constructor.
      */
-    private EvernoteSession(Context ctx, String consumerKey, String consumerSecret, EvernoteService evernoteService,
+    private EvernoteSession(Context ctx, String consumerKey, String consumerSecret, int evernoteService,
             boolean supportAppLinkedNotebooks) throws IllegalArgumentException {
-
-        if (ctx == null || TextUtils.isEmpty(consumerKey) || TextUtils.isEmpty(consumerSecret)
-                || evernoteService == null) {
+        if (ctx == null || TextUtils.isEmpty(consumerKey) || TextUtils.isEmpty(consumerSecret)) {
             throw new IllegalArgumentException("Parameters canot be null or empty");
         }
-
         mConsumerKey = consumerKey;
         mConsumerSecret = consumerSecret;
         mEvernoteService = evernoteService;
@@ -190,7 +163,7 @@ public class EvernoteSession {
     }
 
     /**
-     *
+     * 
      * @return the Bootstrap object to check for server host urls
      */
     protected BootstrapManager getBootstrapSession() {
@@ -222,7 +195,7 @@ public class EvernoteSession {
 
     /**
      * Get the authentication token that is used to make API calls though a NoteStore.Client.
-     *
+     * 
      * @return the authentication token, or null if {@link #isLoggedIn()} is false.
      */
     public String getAuthToken() {
@@ -247,7 +220,6 @@ public class EvernoteSession {
      */
     private String generateUserAgentString(Context ctx) {
         // com.evernote.sample Android/216817 (en); Android/4.0.3; Xoom/15;"
-
         String packageName = null;
         int packageVersion = 0;
         try {
@@ -271,38 +243,27 @@ public class EvernoteSession {
         return userAgent;
     }
 
+    private EvernoteOAuthDialog mAuthDialog;
+
     /**
      * Start the OAuth authentication process.
-     *
+     * 
      * TODO do we need to do anything special here if you're already logged in?
      */
-    public void authenticate(Context ctx) {
-        EvernoteOAuthDialog dialog =
+    public void authenticate(Context ctx, AuthCallback callback) {
+        if (mAuthDialog != null && mAuthDialog.isShowing()) {
+            UIUtil.dismissDialogSafe(mAuthDialog);
+        }
+        mAuthDialog =
                 new EvernoteOAuthDialog(ctx, mEvernoteService, mConsumerKey, mConsumerSecret,
-                        mSupportAppLinkedNotebooks);
-        dialog.show();
-
-        // // Create an activity that will be used for authentication
-        // Intent intent = new Intent(ctx, EvernoteOAuthActivity.class);
-        // intent.putExtra(EvernoteOAuthActivity.EXTRA_EVERNOTE_SERVICE, (Parcelable) mEvernoteService);
-        // intent.putExtra(EvernoteOAuthActivity.EXTRA_CONSUMER_KEY, mConsumerKey);
-        // intent.putExtra(EvernoteOAuthActivity.EXTRA_CONSUMER_SECRET, mConsumerSecret);
-        // intent.putExtra(EvernoteOAuthActivity.EXTRA_SUPPORT_APP_LINKED_NOTEBOOKS, mSupportAppLinkedNotebooks);
-        //
-        // if (ctx instanceof Activity) {
-        // // If this is being called from an activity, an activity can register for the result code
-        // ((Activity) ctx).startActivityForResult(intent, REQUEST_CODE_OAUTH);
-        // } else {
-        // // If this is being called from a service, the refresh will be handled manually
-        // intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        // ctx.startActivity(intent);
-        // }
+                        mSupportAppLinkedNotebooks, callback);
+        mAuthDialog.show();
     }
 
     /**
      * Called upon completion of the OAuth process to save resulting authentication information into the application's
      * SharedPreferences, allowing it to be reused later.
-     *
+     * 
      * @param ctx Application Context or activity
      * @param authToken The authentication information returned at the end of a successful OAuth authentication.
      * @param evernoteHost the URL of the Evernote Web API to connect to, provided by the bootstrap results
@@ -347,11 +308,14 @@ public class EvernoteSession {
             mAuthenticationResult.clear(SessionPreferences.getPreferences(ctx));
             mAuthenticationResult = null;
         }
-
         // TODO The cookie jar is application scope, so we should only be removing
         // evernote.com cookies.
         CookieSyncManager.createInstance(ctx);
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.removeAllCookie();
+    }
+
+    public interface AuthCallback {
+        public void callback(boolean success);
     }
 }
