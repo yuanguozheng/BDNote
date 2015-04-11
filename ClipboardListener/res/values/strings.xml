@@ -5,6 +5,7 @@
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
     <string name="title_activity_create_note">编辑内容</string>
+    <string name="label_activity_selector">分享到万能笔记</string>
     <string name="title_activity_selector">选择要分享的平台</string>
     <string name="platform_evernote">Evernote</string>
     <string name="platform_baidu">Baidu</string>

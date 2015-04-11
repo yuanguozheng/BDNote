@@ -9,6 +9,9 @@ package com.baidu.clipboardlistener;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -18,10 +21,14 @@ import android.view.View.OnClickListener;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
+
+import cn.adbshell.common.sysprovider.SysProvider;
 
 import com.baidu.clipboardlistener.evernote.EvernoteApi;
 import com.evernote.client.android.EvernoteSession.AuthCallback;
+import com.evernote.client.android.EvernoteUtil;
 import com.evernote.client.android.OnClientCallback;
 import com.evernote.edam.type.Note;
 
@@ -31,14 +38,21 @@ import com.evernote.edam.type.Note;
 public class CreateNoteActivity extends Activity implements OnClickListener {
 
     public static final String CLIP_CONTENT = "creatnote.content";
+    public static final String IMAGE_URI = "creatnote.image";
     public static final String PLATFORM = "platform";
 
     private static final String LOGTAG = "CreateNote";
 
     private EditText mTitleEditText;
     private EditText mContentEditText;
+    private ImageView mImageView;
     private Button mCreateButton;
     private ProgressDialog mDialog;
+
+    private String mContent;
+    private Uri mImageUri;
+    private String mImageFilePath;
+    private String mPlatform;
 
     private NoteHelper mNoteHelper;
 
@@ -58,6 +72,8 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
         abstract boolean login();
 
         abstract boolean saveNote(String title, String content);
+
+        abstract boolean saveImage(String title, String content, String image);
     }
 
     class EvernoteHelper extends NoteHelper {
@@ -77,6 +93,12 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
         boolean login() {
             EvernoteApi.getInstance().login(CreateNoteActivity.this, mAuthCallback);
             return true;
+        }
+
+        @Override
+        boolean saveImage(String title, String content, String image) {
+            EvernoteApi.getInstance().createImageNote(title, content, image, mNoteCreateCallback);
+            return false;
         }
 
     }
@@ -101,6 +123,12 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
             return false;
         }
 
+        @Override
+        boolean saveImage(String title, String content, String image) {
+            // TODO Auto-generated method stub
+            return false;
+        }
+
     }
 
     private AuthCallback mAuthCallback = new AuthCallback() {
@@ -117,7 +145,12 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_create_note);
+        getIntentContent();
+        if (!TextUtils.isEmpty(IMAGE_URI)) {
+            setContentView(R.layout.activity_create_img_note);
+        } else {
+            setContentView(R.layout.activity_create_note);
+        }
         setupViews();
         updateContent();
     }
@@ -138,6 +171,7 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        getIntentContent();
         updateContent();
     }
 
@@ -156,6 +190,7 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
     private void setupViews() {
         mTitleEditText = (EditText) findViewById(R.id.creat_et_title);
         mContentEditText = (EditText) findViewById(R.id.create_et_content);
+        mImageView = (ImageView) findViewById(R.id.create_iv_image);
         mCreateButton = (Button) findViewById(R.id.create_btn_create);
         mCreateButton.setOnClickListener(this);
         WindowManager m = getWindowManager();
@@ -163,14 +198,14 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
         mTitleEditText.setWidth((int) (d.getWidth() * 0.7));
     }
 
-    private void updateContent() {
+    private void getIntentContent() {
         Intent intent = getIntent();
         if (intent == null) {
             finish();
             return;
         }
-        String platform = intent.getStringExtra(PLATFORM);
-        mNoteHelper = getNoteHelperByPlatform(platform);
+        mPlatform = intent.getStringExtra(PLATFORM);
+        mNoteHelper = getNoteHelperByPlatform(mPlatform);
         if (mNoteHelper == null) {
             Toast.makeText(this, "传入平台错误", Toast.LENGTH_LONG).show();
             finish();
@@ -179,9 +214,19 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
         if (!mNoteHelper.isLoggedIn()) {
             mNoteHelper.login();
         }
-        String content = intent.getStringExtra(CLIP_CONTENT);
-        if (!TextUtils.isEmpty(content)) {
-            mContentEditText.setText(content);
+        mContent = intent.getStringExtra(CLIP_CONTENT);
+        mImageUri = (Uri) intent.getExtras().get(IMAGE_URI);
+    }
+
+    private void updateContent() {
+        if (!TextUtils.isEmpty(mContent)) {
+            mContentEditText.setText(mContent);
+        }
+        if (mImageUri != null) {
+            String file = SysProvider.getImagePathFromUri(mImageUri);
+            mImageFilePath = file;
+            Bitmap bitmap = BitmapFactory.decodeFile(file);
+            mImageView.setImageBitmap(bitmap);
         }
     }
 
@@ -196,7 +241,11 @@ public class CreateNoteActivity extends Activity implements OnClickListener {
             return;
         }
         showProgressDialog();
-        mNoteHelper.saveNote(title, content);
+        if (mImageUri != null) {
+            mNoteHelper.saveImage(title, content, mImageFilePath);
+        } else {
+            mNoteHelper.saveNote(title, content);
+        }
     }
 
     // Callback used as a result of creating a note in a normal notebook or a linked notebook

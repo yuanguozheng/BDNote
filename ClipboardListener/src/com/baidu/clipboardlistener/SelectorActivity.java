@@ -9,6 +9,7 @@ package com.baidu.clipboardlistener;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -24,6 +25,7 @@ public class SelectorActivity extends Activity implements OnItemClickListener {
 
     private ListView mListView;
     private String mContent;
+    private Uri mImageUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,6 +35,17 @@ public class SelectorActivity extends Activity implements OnItemClickListener {
         Intent intent = getIntent();
         if (intent == null) {
             return;
+        } else {
+            String action = intent.getAction();
+            String type = intent.getType();
+            if (!TextUtils.isEmpty(action) && !TextUtils.isEmpty(type)) {
+                if (type.startsWith("image/")) {
+                    Uri image = (Uri)intent.getParcelableExtra(Intent.EXTRA_STREAM);
+                    if (image!=null) {
+                        mImageUri = image;
+                    }
+                }
+            }
         }
         String content = intent.getStringExtra(CreateNoteActivity.CLIP_CONTENT);
         if (!TextUtils.isEmpty(content)) {
@@ -46,12 +59,14 @@ public class SelectorActivity extends Activity implements OnItemClickListener {
         Intent intent = new Intent(this, CreateNoteActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(CreateNoteActivity.CLIP_CONTENT, mContent);
+        intent.putExtra(CreateNoteActivity.IMAGE_URI, mImageUri);
         intent.putExtra(CreateNoteActivity.PLATFORM, platform);
         startActivity(intent);
         finish();
     }
 
     private void init() {
+        setTitle(R.string.title_activity_selector);
         mListView = (ListView) findViewById(R.id.lv_platforms);
         mListView.setOnItemClickListener(this);
         String[] platforms = getResources().getStringArray(R.array.platforms_array);

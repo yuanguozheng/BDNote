@@ -9,6 +9,9 @@ package com.baidu.clipboardlistener.evernote;
 import android.content.Context;
 import android.util.Log;
 import android.util.Pair;
+import android.webkit.MimeTypeMap;
+
+import cn.adbshell.common.util.FileUtils;
 
 import com.evernote.client.android.AsyncLinkedNoteStoreClient;
 import com.evernote.client.android.EvernoteSession;
@@ -16,10 +19,17 @@ import com.evernote.client.android.EvernoteSession.AuthCallback;
 import com.evernote.client.android.EvernoteUtil;
 import com.evernote.client.android.InvalidAuthenticationException;
 import com.evernote.client.android.OnClientCallback;
+import com.evernote.client.conn.mobile.FileData;
 import com.evernote.edam.type.LinkedNotebook;
 import com.evernote.edam.type.Note;
+import com.evernote.edam.type.Resource;
+import com.evernote.edam.type.ResourceAttributes;
 import com.evernote.thrift.transport.TTransportException;
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.List;
 
 /**
@@ -34,8 +44,8 @@ public class EvernoteApi {
      */
     // Your Evernote API key. See http://dev.evernote.com/documentation/cloud/
     // Please obfuscate your code to help keep these values secret.
-    private static final String CONSUMER_KEY = "yuanguozheng";
-    private static final String CONSUMER_SECRET = "7236c0360a03bcc6";
+    private static final String CONSUMER_KEY = "yuanguozheng-2130";
+    private static final String CONSUMER_SECRET = "98a25a121645e9d9";
 
     // Initial development is done on Evernote's testing service, the sandbox.
     // Change to HOST_PRODUCTION to use the Evernote production service
@@ -85,6 +95,39 @@ public class EvernoteApi {
             }
         } else {
             createNoteInAppLinkedNotebook(note, createNoteCallback);
+        }
+    }
+
+    public void createImageNote(String title, String content, String imageFilePath,
+            OnClientCallback<Note> createImageCallback) {
+        try {
+            InputStream in = new BufferedInputStream(new FileInputStream(imageFilePath));
+            FileData data = new FileData(EvernoteUtil.hash(in), new File(imageFilePath));
+            in.close();
+            String imageExt = FileUtils.getExtension(imageFilePath);
+            String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(imageExt);
+            String fileName = FileUtils.getFileNameWithoutExtension(imageFilePath);
+            Resource resource = new Resource();
+            resource.setData(data);
+            resource.setMime(mime);
+            ResourceAttributes attributes = new ResourceAttributes();
+            attributes.setFileName(fileName);
+            resource.setAttributes(attributes);
+            Note note = new Note();
+            note.setTitle(title);
+            note.addToResources(resource);
+            String pubContent =
+                    EvernoteUtil.NOTE_PREFIX + content + EvernoteUtil.createEnMediaTag(resource)
+                            + EvernoteUtil.NOTE_SUFFIX;
+            note.setContent(pubContent);
+            if (!mEvernoteSession.getAuthenticationResult().isAppLinkedNotebook()) {
+                mEvernoteSession.getClientFactory().createNoteStoreClient().createNote(note, createImageCallback);
+            } else {
+                createNoteInAppLinkedNotebook(note, createImageCallback);
+            }
+        } catch (Exception ex) {
+            Log.e(LOGTAG, "Error creating notestore", ex);
+            createImageCallback.onException(ex);
         }
     }
 
