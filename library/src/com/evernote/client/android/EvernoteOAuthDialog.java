@@ -125,15 +125,20 @@ public class EvernoteOAuthDialog extends Dialog {
             exit(false);
             return;
         }
-        if (mSelectedBootstrapProfile == null) {
-            mBeginAuthSyncTask = new BootstrapAsyncTask().execute();
-        }
     }
 
     @Override
     public void onBackPressed() {
         super.onBackPressed();
         exit(false);
+    }
+
+    @Override
+    public void show() {
+        super.show();
+        if (mSelectedBootstrapProfile == null) {
+            mBeginAuthSyncTask = new BootstrapAsyncTask().execute();
+        }
     }
 
     /**
@@ -165,138 +170,6 @@ public class EvernoteOAuthDialog extends Dialog {
         }
         return new ServiceBuilder().provider(apiClass).apiKey(mConsumerKey).apiSecret(mConsumerSecret)
                 .callback(getCallbackScheme() + "://callback").build();
-    }
-
-    /**
-     * Get a request token from the Evernote service and send the user to our WebView to authorize access.
-     */
-    private class BootstrapAsyncTask extends AsyncTask<Void, Void, String> {
-
-        @Override
-        protected void onPreExecute() {
-            showProgressDialog();
-        }
-
-        @Override
-        protected String doInBackground(Void...params) {
-            String url = null;
-            try {
-                EvernoteSession session = EvernoteSession.getOpenSession();
-                if (session != null) {
-                    // Network request
-                    BootstrapManager.BootstrapInfoWrapper infoWrapper =
-                            session.getBootstrapSession().getBootstrapInfo();
-
-                    if (infoWrapper != null) {
-                        BootstrapInfo info = infoWrapper.getBootstrapInfo();
-                        if (info != null) {
-                            mBootstrapProfiles = (ArrayList<BootstrapProfile>) info.getProfiles();
-                            if (mBootstrapProfiles != null && mBootstrapProfiles.size() > 0
-                                    && mSelectedBootstrapProfilePos < mBootstrapProfiles.size()) {
-                                mSelectedBootstrapProfile = mBootstrapProfiles.get(mSelectedBootstrapProfilePos);
-                            }
-                        }
-                    }
-                }
-                if (mSelectedBootstrapProfile == null
-                        || TextUtils.isEmpty(mSelectedBootstrapProfile.getSettings().getServiceHost())) {
-                    Log.d(LOGTAG, "Bootstrap did not return a valid host");
-                    return null;
-                }
-
-                OAuthService service = createService();
-
-                Log.i(LOGTAG, "Retrieving OAuth request token...");
-                Token reqToken = service.getRequestToken();
-                mRequestToken = reqToken.getToken();
-                mRequestTokenSecret = reqToken.getSecret();
-
-                Log.i(LOGTAG, "Redirecting user for authorization...");
-                url = service.getAuthorizationUrl(reqToken);
-                if (mSupportAppLinkedNotebooks) {
-                    url += "&supportLinkedSandbox=true";
-                }
-            } catch (BootstrapManager.ClientUnsupportedException cue) {
-                return null;
-            } catch (Exception ex) {
-                Log.e(LOGTAG, "Failed to obtain OAuth request token", ex);
-            }
-            return url;
-        }
-
-        /**
-         * Open a WebView to allow the user to authorize access to their account.
-         * 
-         * @param url The URL of the OAuth authorization web page.
-         */
-        @Override
-        protected void onPostExecute(String url) {
-            UIUtil.dismissDialogSafe(mProgressDialog);
-            if (!TextUtils.isEmpty(url)) {
-                mWebView.loadUrl(url);
-            } else {
-                exit(false);
-            }
-        }
-    }
-
-    /**
-     * An AsyncTask to complete the OAuth process after successful user authorization.
-     */
-    private class CompleteAuthAsyncTask extends AsyncTask<Uri, Void, EvernoteAuthToken> {
-
-        @Override
-        protected void onPreExecute() {
-            showProgressDialog();
-        }
-
-        @Override
-        protected EvernoteAuthToken doInBackground(Uri...uris) {
-            EvernoteAuthToken authToken = null;
-            if (uris == null || uris.length == 0) {
-                return null;
-            }
-            Uri uri = uris[0];
-
-            if (!TextUtils.isEmpty(mRequestToken)) {
-                OAuthService service = createService();
-                String verifierString = uri.getQueryParameter("oauth_verifier");
-                String appLnbString = uri.getQueryParameter("sandbox_lnb");
-                boolean isAppLinkedNotebook = "true".equalsIgnoreCase(appLnbString);
-                if (TextUtils.isEmpty(verifierString)) {
-                    Log.i(LOGTAG, "User did not authorize access");
-                } else {
-                    Verifier verifier = new Verifier(verifierString);
-                    Log.i(LOGTAG, "Retrieving OAuth access token...");
-                    try {
-                        Token reqToken = new Token(mRequestToken, mRequestTokenSecret);
-                        authToken =
-                                new EvernoteAuthToken(service.getAccessToken(reqToken, verifier), isAppLinkedNotebook);
-                    } catch (Exception ex) {
-                        Log.e(LOGTAG, "Failed to obtain OAuth access token", ex);
-                    }
-                }
-            } else {
-                Log.d(LOGTAG, "Unable to retrieve OAuth access token, no request token");
-            }
-            return authToken;
-        }
-
-        /**
-         * Save the authentication information resulting from a successful OAuth authorization and complete the
-         * activity.
-         */
-
-        @Override
-        protected void onPostExecute(EvernoteAuthToken authToken) {
-            UIUtil.dismissDialogSafe(mProgressDialog);
-            if (EvernoteSession.getOpenSession() == null) {
-                exit(false);
-                return;
-            }
-            exit(EvernoteSession.getOpenSession().persistAuthenticationToken(getContext().getApplicationContext(),
-                    authToken, mSelectedBootstrapProfile.getSettings().getServiceHost()));
-        }
     }
 
     /**
@@ -357,4 +230,130 @@ public class EvernoteOAuthDialog extends Dialog {
             // TODO by mchen EvernoteOAuthActivity.this.setProgress(newProgress * 1000);
         }
     };
+
+    /**
+     * Get a request token from the Evernote service and send the user to our WebView to authorize access.
+     */
+    private class BootstrapAsyncTask extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected void onPreExecute() {
+            showProgressDialog();
+        }
+
+        @Override
+        protected String doInBackground(Void...params) {
+            try {
+                EvernoteSession session = EvernoteSession.getOpenSession();
+                if (session != null) {
+                    // Network request
+                    BootstrapManager.BootstrapInfoWrapper infoWrapper =
+                            session.getBootstrapSession().getBootstrapInfo();
+                    if (infoWrapper != null) {
+                        BootstrapInfo info = infoWrapper.getBootstrapInfo();
+                        if (info != null) {
+                            mBootstrapProfiles = (ArrayList<BootstrapProfile>) info.getProfiles();
+                            if (mBootstrapProfiles != null && mBootstrapProfiles.size() > 0
+                                    && mSelectedBootstrapProfilePos < mBootstrapProfiles.size()) {
+                                mSelectedBootstrapProfile = mBootstrapProfiles.get(mSelectedBootstrapProfilePos);
+                            }
+                        }
+                    }
+                }
+                if (mSelectedBootstrapProfile == null
+                        || TextUtils.isEmpty(mSelectedBootstrapProfile.getSettings().getServiceHost())) {
+                    Log.d(LOGTAG, "Bootstrap did not return a valid host");
+                    return null;
+                }
+                OAuthService service = createService();
+                Log.i(LOGTAG, "Retrieving OAuth request token...");
+                Token reqToken = service.getRequestToken();
+                mRequestToken = reqToken.getToken();
+                mRequestTokenSecret = reqToken.getSecret();
+                Log.i(LOGTAG, "Redirecting user for authorization...");
+                String url = service.getAuthorizationUrl(reqToken);
+                if (mSupportAppLinkedNotebooks) {
+                    url += "&supportLinkedSandbox=true";
+                }
+                return url;
+            } catch (Exception ex) {
+                Log.e(LOGTAG, "Failed to obtain OAuth request token", ex);
+            }
+            return null;
+        }
+
+        /**
+         * Open a WebView to allow the user to authorize access to their account.
+         * 
+         * @param url The URL of the OAuth authorization web page.
+         */
+        @Override
+        protected void onPostExecute(String url) {
+            UIUtil.dismissDialogSafe(mProgressDialog);
+            if (!TextUtils.isEmpty(url)) {
+                mWebView.loadUrl(url);
+            } else {
+                exit(false);
+            }
+        }
+    }
+
+    /**
+     * An AsyncTask to complete the OAuth process after successful user authorization.
+     */
+    private class CompleteAuthAsyncTask extends AsyncTask<Uri, Void, EvernoteAuthToken> {
+
+        @Override
+        protected void onPreExecute() {
+            showProgressDialog();
+        }
+
+        @Override
+        protected EvernoteAuthToken doInBackground(Uri...uris) {
+            EvernoteAuthToken authToken = null;
+            if (uris == null || uris.length == 0) {
+                return null;
+            }
+            Uri uri = uris[0];
+            if (!TextUtils.isEmpty(mRequestToken)) {
+                OAuthService service = createService();
+                String verifierString = uri.getQueryParameter("oauth_verifier");
+                String appLnbString = uri.getQueryParameter("sandbox_lnb");
+                boolean isAppLinkedNotebook = "true".equalsIgnoreCase(appLnbString);
+                if (TextUtils.isEmpty(verifierString)) {
+                    Log.i(LOGTAG, "User did not authorize access");
+                } else {
+                    Verifier verifier = new Verifier(verifierString);
+                    Log.i(LOGTAG, "Retrieving OAuth access token...");
+                    try {
+                        Token reqToken = new Token(mRequestToken, mRequestTokenSecret);
+                        authToken =
+                                new EvernoteAuthToken(service.getAccessToken(reqToken, verifier), isAppLinkedNotebook);
+                    } catch (Exception ex) {
+                        Log.e(LOGTAG, "Failed to obtain OAuth access token", ex);
+                    }
+                }
+            } else {
+                Log.d(LOGTAG, "Unable to retrieve OAuth access token, no request token");
+            }
+            return authToken;
+        }
+
+        /**
+         * Save the authentication information resulting from a successful OAuth authorization and complete the
+         * activity.
+         */
+
+        @Override
+        protected void onPostExecute(EvernoteAuthToken authToken) {
+            UIUtil.dismissDialogSafe(mProgressDialog);
+            if (EvernoteSession.getOpenSession() == null) {
+                exit(false);
+                return;
+            }
+            exit(EvernoteSession.getOpenSession().persistAuthenticationToken(getContext().getApplicationContext(),
+                    authToken, mSelectedBootstrapProfile.getSettings().getServiceHost()));
+        }
+    }
+
 }

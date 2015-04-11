@@ -106,6 +106,8 @@ public class EvernoteSession {
     private ClientFactory mClientFactory;
     private AuthenticationResult mAuthenticationResult;
     private boolean mSupportAppLinkedNotebooks;
+    
+    private EvernoteOAuthDialog mAuthDialog;
 
     /**
      * Use to acquire a singleton instance of the EvernoteSession for authentication. If the singleton has already been
@@ -243,8 +245,6 @@ public class EvernoteSession {
         return userAgent;
     }
 
-    private EvernoteOAuthDialog mAuthDialog;
-
     /**
      * Start the OAuth authentication process.
      * 
@@ -280,7 +280,6 @@ public class EvernoteSession {
 
             mAuthenticationResult.persist(SessionPreferences.getPreferences(ctx));
         }
-
         return true;
     }
 
