@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="platforms_array">
+        <item>@string/platform_evernote</item>
+        <item>@string/platform_baidu</item>
+        <item>@string/platform_youdao</item>
+    </string-array>
+
+</resources>

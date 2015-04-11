@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">ClipboardListener</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+    <string name="title_activity_create_note">编辑内容</string>
+    <string name="title_activity_selector">选择要分享的平台</string>
+    <string name="platform_evernote">Evernote</string>
+    <string name="platform_baidu">Baidu</string>
+    <string name="platform_youdao">Youdao</string>
+
+</resources>
